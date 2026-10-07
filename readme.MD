@@ -1,4 +1,4 @@
-# 🥷 Kage Bunshin — Bot de Música Multi-Canal
+# Kage Bunshin — Bot de Música Multi-Canal
 
 Bot de música para Discord com **arquitetura multi-clone**, capaz de tocar em múltiplos canais de voz simultaneamente dentro do mesmo servidor. Desenvolvido em Node.js com `discord.js` e `discord-player`.
 
@@ -242,4 +242,4 @@ Contribuições são bem-vindas! Abra uma issue ou envie um pull request.
 
 ---
 
-**🥷 Bora encher as calls de música!**
+**Bora encher as calls de música!**
