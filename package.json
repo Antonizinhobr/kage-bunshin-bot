@@ -1,0 +1,28 @@
+{
+  "name": "kage-bunshin-bot",
+  "version": "1.0.0",
+  "description": "Bot de música multi-canal para Discord",
+  "dependencies": {
+    "@discordjs/opus": "^0.10.0",
+    "@discordjs/voice": "^0.19.2",
+    "@snazzah/davey": "^0.1.12",
+    "bgutils-js": "^4.0.3",
+    "discord-player": "^7.2.0",
+    "discord-player-youtubedlp": "^1.2.2",
+    "discord-player-youtubei": "^3.1.0",
+    "discord.js": "^14.27.0",
+    "dotenv": "^18.0.4",
+    "ffmpeg-static": "^5.3.0",
+    "googlevideo": "^4.1.1",
+    "https-proxy-agent": "^9.1.0",
+    "kazagumo": "^3.4.3",
+    "libsodium-wrappers": "^0.8.4",
+    "mediaplex": "^1.0.0",
+    "opusscript": "^0.0.8",
+    "play-dl": "^1.9.7",
+    "shoukaku": "^4.3.0",
+    "simple-ytdl-core": "^1.1.1",
+    "undici": "^6.19.8",
+    "yt-dlp-exec": "^1.0.2"
+  }
+}
