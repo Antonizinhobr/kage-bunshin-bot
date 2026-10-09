@@ -2,14 +2,8 @@ require("dotenv").config();
 const cluster = require("cluster");
 const fs = require("fs");
 const path = require("path");
-const https = require("https");
-const { execSync } = require("child_process");
 
 const CONFIG_FILE = path.join(__dirname, "runtime-config.json");
-const COOKIE_FILE = path.join(__dirname, "cookies.txt");
-const YTDLP_PATH = path.join(__dirname, "yt-dlp");
-const YTDLP_DOWNLOAD_URL =
-  "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
 
 const BOTS = [
   {
@@ -63,75 +57,6 @@ function cleanUrl(url) {
   } catch {
     return trimmed;
   }
-}
-
-function ensureYtDlp() {
-  return new Promise((resolve) => {
-    if (fs.existsSync(YTDLP_PATH)) {
-      try {
-        fs.chmodSync(YTDLP_PATH, 0o755);
-        const version = execSync(`"${YTDLP_PATH}" --version`, {
-          encoding: "utf-8",
-        }).trim();
-        const help = execSync(`"${YTDLP_PATH}" --help`, {
-          encoding: "utf-8",
-        });
-        if (!help.includes("--js-runtimes")) {
-          throw new Error("yt-dlp instalado não reconhece --js-runtimes");
-        }
-        console.log(`[Setup] yt-dlp já existe: v${version} (${YTDLP_PATH})`);
-        return resolve();
-      } catch (err) {
-        console.log(`[Setup] yt-dlp existente inválido, baixando novamente...`);
-      }
-    }
-
-    console.log(`[Setup] Baixando yt-dlp...`);
-
-    const follow = (url) => {
-      https
-        .get(url, (res) => {
-          if ([301, 302, 307, 308].includes(res.statusCode)) {
-            return follow(res.headers.location);
-          }
-          if (res.statusCode !== 200) {
-            console.error(`[Setup] Falha no download: HTTP ${res.statusCode}`);
-            return resolve();
-          }
-
-          const file = fs.createWriteStream(YTDLP_PATH);
-          res.pipe(file);
-
-          file.on("finish", () => {
-            file.close();
-            try {
-              fs.chmodSync(YTDLP_PATH, 0o755);
-              const version = execSync(`"${YTDLP_PATH}" --version`, {
-                encoding: "utf-8",
-              }).trim();
-              console.log(`[Setup] yt-dlp baixado: v${version}`);
-            } catch (err) {
-              console.error(
-                `[Setup] Falha ao executar yt-dlp: ${err.message}`,
-              );
-            }
-            resolve();
-          });
-
-          file.on("error", (err) => {
-            console.error(`[Setup] Erro ao salvar yt-dlp: ${err.message}`);
-            fs.unlink(YTDLP_PATH, () => {});
-            resolve();
-          });
-        })
-        .on("error", (err) => {
-          console.error(`[Setup] Erro de rede: ${err.message}`);
-          resolve();
-        });
-    };
-
-    follow(YTDLP_DOWNLOAD_URL);
-  });
 }
 
 if (cluster.isPrimary) {
@@ -546,7 +471,6 @@ if (cluster.isPrimary) {
   });
 
   (async () => {
-    await ensureYtDlp();
     await registerCommands();
   })();
 } else {
@@ -558,12 +482,7 @@ if (cluster.isPrimary) {
     PermissionFlagsBits,
   } = require("discord.js");
   const { Player, QueueRepeatMode } = require("discord-player");
-  const { YouTubeDlpExtractor, setYtDlpPath } = require("discord-player-youtubedlp");
-  const {
-    SoundCloudExtractor,
-    SpotifyExtractor,
-    AppleMusicExtractor,
-  } = require("@discord-player/extractor");
+  const { DefaultExtractors } = require("@discord-player/extractor");
 
   const BOT_NAME = process.env.BOT_NAME;
   const BOT_DISPLAY_NAME = process.env.BOT_DISPLAY_NAME || BOT_NAME;
@@ -647,61 +566,11 @@ if (cluster.isPrimary) {
     console.log(`[${BOT_DISPLAY_NAME}] online como${c.user.tag}`);
 
     try {
-      // O caminho é configurado pela função exportada pelo pacote, não por uma
-      // propriedade ytdlpPath nas opções do extractor.
-      setYtDlpPath(YTDLP_PATH);
-      const version = execSync(`"${YTDLP_PATH}" --version`, {
-        encoding: "utf-8",
-      }).trim();
-      const help = execSync(`"${YTDLP_PATH}" --help`, {
-        encoding: "utf-8",
-      });
-      if (!help.includes("--js-runtimes")) {
-        throw new Error(`O binário ${YTDLP_PATH} (v${version}) não suporta --js-runtimes.`);
-      }
-      console.log(`[${BOT_DISPLAY_NAME}] yt-dlp local validado: v${version} (${YTDLP_PATH}).`);
-
-      const ytdlpOptions = {
-        agent: {},
-      };
-
-      if (process.env.PROXY_URL) {
-        ytdlpOptions.agent.proxyUri = process.env.PROXY_URL;
-        console.log(`[${BOT_DISPLAY_NAME}] Proxy do YouTube ativado.`);
-      }
-
-      if (fs.existsSync(COOKIE_FILE)) {
-        ytdlpOptions.agent.cookiesFile = COOKIE_FILE;
-        console.log(`[${BOT_DISPLAY_NAME}] cookies.txt configurado.`);
-      }
-
-      await player.extractors.register(YouTubeDlpExtractor, ytdlpOptions);
-      console.log(
-        `[${BOT_DISPLAY_NAME}] Extractor YouTubeDLP registrado (path: ${YTDLP_PATH}).`,
-      );
+      // Registrando os extratores padrões do discord-player
+      await player.extractors.loadMulti(DefaultExtractors);
+      console.log(`[${BOT_DISPLAY_NAME}] Extratores padrões carregados com sucesso.`);
     } catch (err) {
-      console.error(`[${BOT_DISPLAY_NAME}] erro YouTubeDLP:`, err.message);
-    }
-
-    try {
-      await player.extractors.register(SoundCloudExtractor, {});
-      console.log(`[${BOT_DISPLAY_NAME}] Extractor SoundCloud registrado.`);
-    } catch (err) {
-      console.error(`[${BOT_DISPLAY_NAME}] erro SoundCloud:`, err.message);
-    }
-
-    try {
-      await player.extractors.register(SpotifyExtractor, {});
-      console.log(`[${BOT_DISPLAY_NAME}] Extractor Spotify registrado.`);
-    } catch (err) {
-      console.error(`[${BOT_DISPLAY_NAME}] erro Spotify:`, err.message);
-    }
-
-    try {
-      await player.extractors.register(AppleMusicExtractor, {});
-      console.log(`[${BOT_DISPLAY_NAME}] Extractor Apple Music registrado.`);
-    } catch (err) {
-      console.error(`[${BOT_DISPLAY_NAME}] erro Apple Music:`, err.message);
+      console.error(`[${BOT_DISPLAY_NAME}] erro ao carregar os extratores padrões:`, err.message);
     }
 
     if (process.send) process.send({ type: "ready", name: BOT_NAME });
@@ -1033,23 +902,11 @@ if (cluster.isPrimary) {
 
         let result = await player.search(msg.query, {
           requestedBy: { id: msg.requesterId },
-          searchEngine: `ext:${YouTubeDlpExtractor.identifier}`,
+          searchEngine: "auto",
         });
 
         if (!result.hasTracks()) {
-          console.log(
-            `[${BOT_DISPLAY_NAME}] YouTube falhou/sem resultados, tentando SoundCloud...`,
-          );
-          result = await player.search(msg.query, {
-            requestedBy: { id: msg.requesterId },
-            searchEngine: "soundcloud",
-          });
-        }
-
-        if (!result.hasTracks()) {
-          throw new Error(
-            "Nenhum resultado encontrado no YouTube ou SoundCloud.",
-          );
+          throw new Error("Nenhum resultado encontrado.");
         }
 
         await ensureVoiceConnection(guild, queue, voiceChannel, botMember);
