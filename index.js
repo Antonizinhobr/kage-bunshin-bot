@@ -489,7 +489,7 @@ if (cluster.isPrimary) {
   const panelRefreshTimers = new Map();
 
   client.once(Events.ClientReady, async (c) => {
-    console.log(`[${BOT_DISPLAY_NAME}] online como ${c.user.tag}`);
+    console.log(`[${BOT_DISPLAY_NAME}] online como${c.user.tag}`);
 
     const extractors = [
       { name: 'YouTubei', Extractor: YoutubeExtractor, opts: {} },
@@ -501,9 +501,9 @@ if (cluster.isPrimary) {
     for (const { name, Extractor, opts } of extractors) {
       try {
         await player.extractors.register(Extractor, opts);
-        console.log(`[${BOT_DISPLAY_NAME}] Extractor ${name} registrado.`);
+        console.log(`[${BOT_DISPLAY_NAME}] Extractor${name} registrado.`);
       } catch (err) {
-        console.error(`[${BOT_DISPLAY_NAME}] erro ${name}:`, err.message);
+        console.error(`[${BOT_DISPLAY_NAME}] erro${name}:`, err.message);
       }
     }
 
@@ -512,7 +512,7 @@ if (cluster.isPrimary) {
 
   player.events.on('playerStart', async (queue, track) => {
     try {
-      console.log(`[${BOT_DISPLAY_NAME}] tocando: ${track.title}`);
+      console.log(`[${BOT_DISPLAY_NAME}] tocando:${track.title}`);
       queue.metadata.panelClock = { startedAt: Date.now(), elapsedMs: 0, paused: false };
       queue.metadata.panelView = queue.metadata.panelView || 'nowplaying';
       if (queue.metadata?.panelMessageId && queue.metadata?.panelChannelId) {
@@ -525,7 +525,7 @@ if (cluster.isPrimary) {
       
       const voiceChannel = queue.guild?.members?.me?.voice?.channel;
       if (voiceChannel && typeof voiceChannel.setStatus === 'function') {
-        const statusText = `▶️ ${track.title} - ${track.author}`.substring(0, 499);
+        const statusText = `▶️ ${track.title}\n${track.author}`.substring(0, 499);
         await voiceChannel.setStatus(statusText).catch(() => {});
       }
     } catch (err) {
@@ -645,24 +645,29 @@ if (cluster.isPrimary) {
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   };
 
-  const makeProgressBar = (currentMs, totalMs, width = 18) => {
+  const makeProgressBar = (currentMs, totalMs, width = 20) => {
     if (!totalMs) return '🔴 AO VIVO';
     const progress = Math.max(0, Math.min(1, currentMs / totalMs));
-    const marker = Math.min(width - 1, Math.floor(progress * width));
-    return Array.from({ length: width }, (_, i) => i === marker ? '●' : (i < marker ? '━' : '─')).join('');
+    const markerIndex = Math.min(width - 1, Math.floor(progress * width));
+    return Array.from({ length: width }, (_, i) => i === markerIndex ? '🔘' : '▬').join('');
   };
 
-  const buildMusicPanelPayload = (queue = null, view = 'nowplaying') => {
+  const buildMusicPanelPayload = (queue = null) => {
     const track = queue?.currentTrack;
     const isPaused = Boolean(queue?.node?.isPaused?.());
     const totalMs = Number(track?.durationMS) || 0;
     const currentMs = getPanelElapsedMs(queue);
     const title = track?.title || 'Nada tocando no momento';
-    const requesterId = track?.requestedBy?.id || track?.requestedBy?.user?.id;
+    
+    // CORREÇÃO DO REQUISITANTE
+    let requesterId = track?.requestedBy?.id || track?.requestedBy?.user?.id;
+    if (typeof track?.requestedBy === 'string') requesterId = track.requestedBy;
+
     const voiceChannelId = queue?.metadata?.voiceChannelId || queue?.guild?.members?.me?.voice?.channelId;
     const description = track
       ? `**[${title}](${track.url || 'https://discord.com'})**\n${track.author || 'Artista desconhecido'}\n\n\`${formatPanelTime(currentMs)}\` ${makeProgressBar(currentMs, totalMs)} \`${totalMs ? formatPanelTime(totalMs) : 'LIVE'}\``
       : 'Escolha uma música para começar. Clique em **Adicionar** e pesquise por nome ou cole um link.';
+      
     const embed = new EmbedBuilder()
       .setColor(track ? (isPaused ? 0xf1c40f : 0x5865f2) : 0x2b2d31)
       .setAuthor({ name: 'KAGE BUNSHIN • MUSIC PLAYER' })
@@ -680,10 +685,10 @@ if (cluster.isPrimary) {
       embed.setThumbnail(track.thumbnail);
     }
 
-    if (view === 'queue' && queue) {
+    if (queue) {
       const upcoming = queue.tracks.toArray().slice(0, 8);
       const queueText = upcoming.length
-        ? upcoming.map((item, index) => `**${index + 1}.** ${item.title} — ${item.durationMS ? formatDuration(item.durationMS) : 'Ao vivo'}`).join('\n').slice(0, 1024)
+        ? upcoming.map((item, index) => `**${index + 1}.** ${item.title} —${item.durationMS ? formatDuration(item.durationMS) : 'Ao vivo'}`).join('\n').slice(0, 1024)
         : 'A fila está vazia.';
       embed.addFields({ name: 'PRÓXIMAS', value: queueText });
     }
@@ -701,7 +706,7 @@ if (cluster.isPrimary) {
       const message = channel.messages.cache.get(metadata.panelMessageId)
         || await channel.messages.fetch(metadata.panelMessageId).catch(() => null);
       if (message) {
-        await message.edit(buildMusicPanelPayload(empty ? null : queue, metadata.panelView || 'nowplaying'));
+        await message.edit(buildMusicPanelPayload(empty ? null : queue));
       }
     } catch (error) {
       console.error(`[${BOT_DISPLAY_NAME}] erro ao atualizar painel:`, error.message);
@@ -1014,7 +1019,12 @@ if (cluster.isPrimary) {
 
           if (!result.hasTracks()) throw new Error('Nenhum resultado encontrado.');
 
-          queue.addTrack(result.tracks[0]);
+          const track = result.tracks[0];
+          
+          // FORÇA O REQUISITANTE NO OBJETO DA MÚSICA PARA O EMBED LER
+          track.requestedBy = msg.requesterId;
+
+          queue.addTrack(track);
           if (!queue.isPlaying()) await queue.node.play();
 
           if (process.send) {
@@ -1173,12 +1183,10 @@ if (cluster.isPrimary) {
         }
 
         const currentQueue = activeQueues.get(msg.guildId) || null;
-        if (currentQueue) currentQueue.metadata.panelView = action === 'queue' ? 'queue' : 'nowplaying';
         if (process.send) {
-          const view = action === 'queue' ? 'queue' : 'nowplaying';
           process.send({
             type: 'control_result', interactionToken, applicationId, content,
-            payload: buildMusicPanelPayload(currentQueue, view),
+            payload: buildMusicPanelPayload(currentQueue),
           });
         }
         return;
