@@ -356,6 +356,7 @@ if (cluster.isPrimary) {
       .addFields(
         { name: '🎙️ Canal', value: `<#${queue.metadata.voiceChannelId}>`, inline: true },
         { name: '🎧 Pedida por', value: track.requesterName || 'Desconhecido', inline: true },
+        { name: '🤖 Clone', value: BOT_DISPLAY_NAME, inline: true },
         { name: '📑 Próximas na fila', value: `${nextTracks}${queueCount}`, inline: false }
       );
 
@@ -412,8 +413,9 @@ if (cluster.isPrimary) {
         const searchQuery = /^https?:\/\//i.test(msg.query) ? msg.query : `ytsearch:${msg.query}`;
         const result = await node.rest.resolve(searchQuery);
 
-        if (!result || result.loadType === 'empty') throw new Error('Música não encontrada.');
-        if (result.loadType === 'error') throw new Error(`Erro do Lavalink: ${result.data?.message || 'desconhecido'}`);
+        if (!result || result.loadType === 'empty' || result.loadType === 'error') {
+          throw new Error('Não consegui encontrar a música. Tenta de novo colocando somente o título da música.');
+        }
 
         const tracksToAdd = result.loadType === 'playlist'
           ? result.data.tracks
@@ -431,7 +433,7 @@ if (cluster.isPrimary) {
             requesterName: msg.requesterName
           }));
           
-        if (!mapped.length) throw new Error('Música não encontrada.');
+        if (!mapped.length) throw new Error('Não consegui encontrar a música. Tenta de novo colocando somente o título da música.');
 
         let queue = activeQueues.get(msg.guildId);
         if (!queue) {
